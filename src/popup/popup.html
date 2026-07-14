@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ARKN — PII Protection</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+
+  <!-- ── 1. UNAUTHENTICATED VIEW ── -->
+  <div id="auth-view" class="view hidden">
+    <div class="auth-container">
+      <span class="brand-wordmark">ARKN</span>
+      <div class="auth-content">
+        <h1 class="auth-title">Protect your AI prompts</h1>
+        <p class="auth-desc">Enable enterprise compliance auditing and real-time client-side redaction.</p>
+      </div>
+      <button id="btn-connect" class="btn-primary-ss">Connect via Dashboard</button>
+      <span class="auth-footer">Requires an ARKN user account</span>
+    </div>
+  </div>
+
+  <!-- ── 2. AUTHENTICATED VIEW ── -->
+  <div id="main-view" class="view hidden">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <span class="logo-text">ARKN</span>
+      </div>
+      <div id="status-badge" class="status-badge active" aria-live="polite">
+        <span class="status-dot"></span>
+        <span id="status-label">Active</span>
+      </div>
+    </header>
+
+    <div class="divider"></div>
+
+    <!-- Active User Account Row -->
+    <div class="user-row">
+      <span id="user-email" class="user-email">employee@company.com</span>
+      <button id="btn-signout" class="signout-link">Sign out</button>
+    </div>
+
+    <!-- Hero counter -->
+    <section class="hero" aria-label="Protection summary">
+      <div id="hero-number" class="hero-number">—</div>
+      <div id="hero-label" class="hero-label">items protected today</div>
+    </section>
+
+    <!-- Period selector -->
+    <div class="period-row" role="group" aria-label="Time period">
+      <button class="period-btn active" id="btn-today" data-period="today">Today</button>
+      <button class="period-btn" id="btn-week" data-period="week">7 days</button>
+      <button class="period-btn" id="btn-all" data-period="allTime">All time</button>
+    </div>
+
+    <!-- Protected Briefing List -->
+    <div id="briefing-container" class="briefing-container">
+      <div class="briefing-header">PROTECTED DATA BREAKDOWN</div>
+      <div id="briefing-list" class="briefing-list">
+        <div class="briefing-empty">
+          <span class="shield-icon-lg">🛡️</span>
+          <span class="empty-title">All Prompts Secured</span>
+          <span class="empty-desc">No sensitive PII has been leaked.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toggle -->
+    <div class="toggle-row">
+      <div class="toggle-label">
+        <strong>Redaction</strong>
+        <span>Filter prompts in real-time</span>
+      </div>
+      <label class="toggle" aria-label="Enable or disable ARKN protection">
+        <input type="checkbox" id="toggle-enabled" checked />
+        <div class="toggle-track"></div>
+        <div class="toggle-thumb"></div>
+      </label>
+    </div>
+
+    <!-- Backup Status -->
+    <div id="backup-status" class="backup-status" style="text-align: center; font-size: 9px; color: #1A5C38; margin-top: -8px; margin-bottom: 4px; font-weight: 500;"></div>
+
+    <!-- Footer buttons -->
+    <div class="divider"></div>
+    <footer class="footer">
+      <div class="backup-links">
+        <button class="footer-link" id="btn-export" title="Export local tokens backup">Export</button>
+        <span class="footer-sep">|</span>
+        <label class="footer-link" title="Import local tokens backup">
+          Import
+          <input type="file" id="input-import" accept=".json" style="display:none" />
+        </label>
+      </div>
+      <button class="log-btn" id="btn-history" title="View 30-day audit log">
+        Compliance Log →
+      </button>
+    </footer>
+  </div>
+
+  <script src="../config.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

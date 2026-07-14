@@ -1,0 +1,334 @@
+/**
+ * ARKN — Regex PII Engine
+ * Runs injected into the MAIN world via a <script> tag.
+ * No Chrome APIs. Pure JS, synchronous, no dependencies.
+ *
+ * Exposes: window.__ARKN_REGEX__ = { redact, restore }
+ */
+(function (global) {
+  'use strict';
+
+
+
+  // Set of common names across cultures (English, West African, South Asian, Arabic, Eastern European, East Asian)
+  // Expanded to reduce bias towards Anglo-American names.
+  const COMMON_NAMES = new Set([
+    // ── Anglo-American (male) ──────────────────────────────────────────────────
+    'James', 'John', 'Robert', 'Michael', 'William', 'David', 'Richard', 'Joseph', 'Thomas', 'Charles',
+    'Christopher', 'Daniel', 'Matthew', 'Anthony', 'Mark', 'Donald', 'Steven', 'Paul', 'Andrew', 'Joshua',
+    'Kenneth', 'Kevin', 'Brian', 'George', 'Edward', 'Ronald', 'Timothy', 'Jason', 'Jeffrey', 'Ryan',
+    'Jacob', 'Gary', 'Nicholas', 'Eric', 'Jonathan', 'Stephen', 'Larry', 'Justin', 'Scott', 'Brandon',
+    'Benjamin', 'Samuel', 'Gregory', 'Frank', 'Alexander', 'Raymond', 'Patrick', 'Jack', 'Dennis', 'Jerry',
+    'Tyler', 'Aaron', 'Jose', 'Adam', 'Nathan', 'Henry', 'Douglas', 'Zachary', 'Peter', 'Kyle',
+    // ── Anglo-American (female) ────────────────────────────────────────────────
+    'Mary', 'Patricia', 'Jennifer', 'Linda', 'Elizabeth', 'Barbara', 'Susan', 'Jessica', 'Sarah', 'Karen',
+    'Lisa', 'Nancy', 'Betty', 'Sandra', 'Margaret', 'Ashley', 'Kimberly', 'Emily', 'Donna', 'Michelle',
+    'Carol', 'Amanda', 'Dorothy', 'Melissa', 'Deborah', 'Stephanie', 'Rebecca', 'Sharon', 'Laura', 'Cynthia',
+    'Kathleen', 'Amy', 'Shirley', 'Angela', 'Helen', 'Anna', 'Brenda', 'Pamela', 'Nicole', 'Samantha',
+    'Katherine', 'Emma', 'Ruth', 'Christine', 'Catherine', 'Debra', 'Rachel', 'Carolyn', 'Janet', 'Virginia',
+    'Maria', 'Heather', 'Diane', 'Julie', 'Joyce', 'Victoria', 'Kelly', 'Christina', 'Lauren', 'Joan',
+    'Evelyn', 'Olivia', 'Judith', 'Megan', 'Cheryl', 'Martha', 'Andrea', 'Frances', 'Hannah', 'Jacqueline',
+    'Jane', 'Alice', 'Bob', 'Claire', 'Sophie', 'Charlotte', 'Grace', 'Lucy', 'Ella', 'Lily',
+    'Harry', 'Oliver', 'George', 'Charlie', 'Noah', 'Liam', 'Leo', 'Ethan', 'Isaac', 'Oscar',
+    // ── Yoruba / West African ──────────────────────────────────────────────────
+    'Bunmi', 'Tunde', 'Funmi', 'Bola', 'Sade', 'Wole', 'Femi', 'Seun', 'Kemi', 'Temi',
+    'Lola', 'Dele', 'Bisi', 'Dupe', 'Nike', 'Tobi', 'Dayo', 'Goke', 'Lanre', 'Deji',
+    'Yemi', 'Titi', 'Remi', 'Ayo', 'Biodun', 'Bimbo', 'Kunle', 'Sola', 'Wale', 'Rotimi',
+    'Gbenga', 'Seyi', 'Jide', 'Bayo', 'Akin', 'Dapo', 'Leke', 'Ade', 'Tokunbo', 'Oluseun',
+    // ── Igbo / South-Eastern Nigerian ─────────────────────────────────────────
+    'Emeka', 'Ngozi', 'Chidi', 'Chinwe', 'Amara', 'Nnamdi', 'Obioma', 'Adaeze', 'Chukwuemeka',
+    'Uche', 'Ify', 'Ifeoma', 'Chinyere', 'Kelechi', 'Obinna', 'Chisom', 'Chidinma',
+    // ── Hausa / Northern Nigerian ──────────────────────────────────────────────
+    'Musa', 'Usman', 'Ibrahim', 'Halima', 'Amina', 'Abubakar', 'Sadiya', 'Hauwa',
+    // ── Ghanaian / Other West African ─────────────────────────────────────────
+    'Kwame', 'Ama', 'Kofi', 'Akosua', 'Kwesi', 'Abena', 'Yaw', 'Adjoa', 'Kojo',
+    'Esi', 'Nana', 'Fiifi', 'Efua', 'Dela', 'Eyram', 'Mawuli', 'Kafui',
+    // ── South Asian (Indian Subcontinent) ─────────────────────────────────────
+    'Priya', 'Arun', 'Kavya', 'Deepa', 'Ravi', 'Meera', 'Anil', 'Sunita', 'Vijay', 'Anita',
+    'Raj', 'Pooja', 'Amit', 'Sanjay', 'Nisha', 'Suresh', 'Divya', 'Kiran', 'Rahul', 'Sneha',
+    'Arjun', 'Neha', 'Vikram', 'Asha', 'Rohan', 'Anjali', 'Sunil', 'Rekha', 'Ajay', 'Madhuri',
+    'Nikhil', 'Swati', 'Gaurav', 'Preeti', 'Varun', 'Shweta', 'Manish', 'Geeta', 'Akash', 'Ritu',
+    'Harpreet', 'Gurpreet', 'Navdeep', 'Jaspreet', 'Simran', 'Kaur', 'Patel', 'Singh',
+    'Aditi', 'Zara', 'Leena', 'Sapna', 'Reena', 'Seema', 'Meena', 'Veena',
+    // ── Arabic / Middle Eastern ────────────────────────────────────────────────
+    'Mohammed', 'Ahmad', 'Ali', 'Omar', 'Hassan', 'Yusuf', 'Aisha', 'Fatima', 'Zainab',
+    'Maryam', 'Layla', 'Nadia', 'Rania', 'Tariq', 'Khalid', 'Hamid', 'Nasser', 'Samir',
+    'Yasmin', 'Leila', 'Dina', 'Hana', 'Lina', 'Reem', 'Noura', 'Mariam', 'Hind',
+    'Karim', 'Bilal', 'Walid', 'Khaled', 'Salim', 'Faisal', 'Rashid', 'Majid',
+    // ── Eastern European ──────────────────────────────────────────────────────
+    'Olga', 'Natasha', 'Dmitri', 'Ivan', 'Katya', 'Mikhail', 'Anastasia', 'Pavel',
+    'Sasha', 'Irina', 'Sergei', 'Elena', 'Tatiana', 'Andrei', 'Yulia', 'Alexei',
+    'Viktor', 'Ludmila', 'Nikolai', 'Vera', 'Boris', 'Oksana', 'Vitaly', 'Daria',
+    'Piotr', 'Agnieszka', 'Tomasz', 'Krzysztof', 'Mateusz', 'Zofia', 'Magdalena',
+    // ── East / South-East Asian ───────────────────────────────────────────────
+    'Wei', 'Mei', 'Hong', 'Jing', 'Hui', 'Xiao', 'Ming', 'Fang', 'Lin', 'Ying',
+    'Tao', 'Jun', 'Shan', 'Yan', 'Hao', 'Ting', 'Peng', 'Xin', 'Zhen', 'Rui',
+    'Tanaka', 'Kenji', 'Yuki', 'Sakura', 'Hiroshi', 'Aiko', 'Takeshi', 'Yuko',
+    'Kim', 'Ji', 'Min', 'Soo', 'Young', 'Jae', 'Hyun', 'Sun', 'Sung', 'Hee',
+    // ── Latin American / Spanish ──────────────────────────────────────────────
+    'Carlos', 'Miguel', 'Juan', 'Luis', 'Antonio', 'Francisco', 'Jorge', 'Diego',
+    'Sofia', 'Isabella', 'Valentina', 'Camila', 'Lucia', 'Gabriela', 'Daniela', 'Mariana',
+    'Pedro', 'Alejandro', 'Pablo', 'Andres', 'Ricardo', 'Fernando', 'Eduardo', 'Rodrigo',
+  ]);
+
+  const PATTERNS = [
+    {
+      type: 'EMAIL',
+      // Standard email, greedy but safe
+      regex: /\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b/g,
+    },
+    {
+      type: 'PHONE',
+      // UK numbers: mobiles (07xxx), +44 mobiles, landlines (01xxx/02xxx/03xxx),
+      // freephone (0800), and +44 equivalents. Allows spaces and hyphens as separators.
+      regex:
+        /(?:\+44[\s\-]?|0)(?:(?:7\d{3}[\s\-]?\d{6})|(?:7\d{2}[\s\-]?\d{3}[\s\-]?\d{3})|(?:800[\s\-]?\d{3}[\s\-]?\d{4})|(?:808[\s\-]?\d{3}[\s\-]?\d{4})|(?:1\d{3}[\s\-]?\d{6})|(?:1\d{3}[\s\-]?\d{3}[\s\-]?\d{3,4})|(?:1\d{2}[\s\-]?\d{4}[\s\-]?\d{4})|(?:20[\s\-]?\d{4}[\s\-]?\d{4})|(?:2\d[\s\-]?\d{4}[\s\-]?\d{4})|(?:3\d{2}[\s\-]?\d{3}[\s\-]?\d{4}))\b/g,
+    },
+    {
+      type: 'POSTCODE',
+      // UK postcode — inward + outward code
+      regex: /\b[A-Z]{1,2}[0-9]{1,2}[A-Z]?\s?[0-9][A-Z]{2}\b/gi,
+    },
+    {
+      type: 'NINO',
+      // UK National Insurance Number
+      regex:
+        /\b(?!BG|GB|NK|KN|TN|NT|ZZ)[A-CEGHJ-PR-TW-Z]{2}[\s\-]?\d{2}[\s\-]?\d{2}[\s\-]?\d{2}[\s\-]?[A-D]\b/gi,
+    },
+    {
+      type: 'DRIVELIC',
+      // UK Driving License (16 chars)
+      regex: /\b[A-Z9]{5}\d{6}[A-Z9]{2}\d[A-Z]{2}\b/gi,
+    },
+    {
+      type: 'NHS',
+      // NHS Number (10 digits) - checksum checked during replacement
+      regex: /\b\d{3}[\s\-]?\d{3}[\s\-]?\d{4}\b/g,
+    },
+    {
+      type: 'BANK',
+      // Bank account numbers (8 digits) or sort codes with separators
+      regex: /\b\d{2}[\-\s]\d{2}[\-\s]\d{2}\b|\b(?:sort|sc|acc|account|a\/c|bank)[\s\-:]*\d{6,8}\b/gi,
+    },
+    {
+      type: 'CLAIM',
+      // UK Court Claim reference numbers (e.g. MC12C345)
+      regex: /\b[A-Z]{1,2}\d{2}[A-Z]\d{3}\b|\b(?:claim|case|matter)\s*(?:no|number)?[:\s\-]*([A-Z0-9]{6,12})\b/gi,
+    },
+  ];
+
+  function isValidNhsNumber(str) {
+    const digits = str.replace(/[\s\-]/g, '');
+    if (digits.length !== 10) return false;
+    let sum = 0;
+    for (let i = 0; i < 9; i++) {
+      sum += parseInt(digits[i], 10) * (10 - i);
+    }
+    const remainder = sum % 11;
+    const checkDigit = remainder === 0 ? 0 : 11 - remainder;
+    if (checkDigit === 11) return false;
+    return checkDigit === parseInt(digits[9], 10);
+  }
+
+  // Common English words/nouns/verbs that should never be classified as proper names
+  const STOPWORDS = new Set([
+    'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', 'aren\'t', 'as', 'at',
+    'be', 'because', 'been', 'before', 'being', 'below', 'between', 'both', 'but', 'by', 'can', 'can\'t', 'cannot',
+    'could', 'couldn\'t', 'did', 'didn\'t', 'do', 'does', 'doesn\'t', 'doing', 'don\'t', 'down', 'during', 'each',
+    'few', 'for', 'from', 'further', 'had', 'hadn\'t', 'has', 'hasn\'t', 'have', 'haven\'t', 'having', 'he', 'he\'d',
+    'he\'ll', 'he\'s', 'her', 'here', 'here\'s', 'hers', 'herself', 'him', 'himself', 'his', 'how', 'how\'s', 'i',
+    'i\'d', 'i\'ll', 'i\'m', 'i\'ve', 'if', 'in', 'into', 'is', 'isn\'t', 'it', 'it\'s', 'its', 'itself', 'let\'s',
+    'me', 'more', 'most', 'mustn\'t', 'my', 'myself', 'name', 'names', 'no', 'nor', 'not', 'of', 'off', 'on', 'once',
+    'only', 'or', 'other', 'ought', 'our', 'ours', 'ourselves', 'out', 'over', 'own', 'same', 'shan\'t', 'she',
+    'she\'d', 'she\'ll', 'she\'s', 'should', 'shouldn\'t', 'so', 'some', 'such', 'than', 'that', 'that\'s', 'the',
+    'their', 'theirs', 'them', 'themselves', 'then', 'there', 'there\'s', 'these', 'they', 'they\'d', 'they\'ll',
+    'they\'re', 'they\'ve', 'this', 'those', 'through', 'to', 'too', 'under', 'until', 'up', 'very', 'was', 'wasn\'t',
+    'we', 'we\'d', 'we\'ll', 'we\'re', 'we\'ve', 'were', 'weren\'t', 'what', 'what\'s', 'when', 'when\'s', 'where',
+    'where\'s', 'which', 'while', 'who', 'who\'s', 'whom', 'why', 'why\'s', 'with', 'won\'t', 'would', 'wouldn\'t',
+    'you', 'you\'d', 'you\'ll', 'you\'re', 'you\'ve', 'your', 'yours', 'yourself', 'yourselves',
+    'friend', 'colleague', 'associate', 'client', 'partner', 'contact', 'employee', 'manager', 'boss', 'coworker',
+    'peer', 'classmate', 'teammate', 'person', 'people', 'man', 'woman', 'boy', 'girl', 'guy', 'sir', 'madam'
+  ]);
+
+  function redactNamesAndOrgs(text, tokens, summary, tokenOffsets = {}) {
+    const candidates = new Set();
+    const orgs = new Set();
+
+    const isCandidateValid = (word) => {
+      if (!word || word.length < 2) return false;
+      const lower = word.toLowerCase();
+      if (STOPWORDS.has(lower)) return false;
+      return true;
+    };
+
+    // ── Pass 1: Extract Name candidates ──────────────────────────────────────
+    
+    // 1. Honorifics: Mr/Ms/Mrs/Dr/Prof/Sir/Lady/Mx [Name] [Name]
+    const honorificRe = /\b(?:Mr|Ms|Mrs|Dr|Prof|Sir|Lady|Mx)\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/g;
+    let match;
+    while ((match = honorificRe.exec(text)) !== null) {
+      if (isCandidateValid(match[1])) candidates.add(match[1]);
+    }
+
+    // 2. Greetings: Dear/Hi/Hello/Hey/To [Name] [Name]
+    const greetingRe = /\b(?:Dear|Hi|Hello|Hey|To|Greetings),?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/g;
+    while ((match = greetingRe.exec(text)) !== null) {
+      if (isCandidateValid(match[1])) candidates.add(match[1]);
+    }
+
+    // 3. Introductions: my name is [Name], speaking with [Name]
+    const introRe = /\b(?:my name is|names? is|call me|i'm|i am|speaking with|contact),?\s+([A-Za-z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/gi;
+    while ((match = introRe.exec(text)) !== null) {
+      const captured = match[1];
+      if (/^[A-Z]/.test(captured) && isCandidateValid(captured)) {
+        candidates.add(captured);
+      }
+    }
+
+    // 4. Sign-offs: Sincerely, [Name]
+    const signoffRe = /\b(?:Regards|Sincerely|Thanks|Best|Best regards|Yours sincerely|Kind regards|Cheers|From),?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/g;
+    while ((match = signoffRe.exec(text)) !== null) {
+      if (isCandidateValid(match[1])) candidates.add(match[1]);
+    }
+
+    // 5. Dictionary-based fallback (Common Names — capitalized words in text)
+    const capWordsRe = /\b([A-Z][a-z]+)\b/g;
+    while ((match = capWordsRe.exec(text)) !== null) {
+      if (COMMON_NAMES.has(match[1]) && isCandidateValid(match[1])) {
+        candidates.add(match[1]);
+      }
+    }
+
+    // 6. Social relationship context: "my friend Bunmi", "this colleague James"
+    const socialRe = /\b(?:my|our|a|this|the)\s+(?:friend|colleague|associate|client|partner|contact|employee|manager|boss|coworker|co-worker|peer|classmate|teammate)\s+([A-Za-z]{2,20})\b/gi;
+    while ((match = socialRe.exec(text)) !== null) {
+      const raw = match[1];
+      if (isCandidateValid(raw)) {
+        candidates.add(raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase());
+      }
+    }
+
+    // 7. Verb-object context: "tell James", "ask Bunmi", "contact Sarah"
+    const verbNameRe = /\b(?:tell|ask|call|email|message|contact|meet|inform|update|speak\s+to|speak\s+with|talk\s+to|chat\s+with|cc|invite)\s+([A-Z][a-z]{1,20})\b/g;
+    while ((match = verbNameRe.exec(text)) !== null) {
+      if (isCandidateValid(match[1])) candidates.add(match[1]);
+    }
+
+    // ── Pass 1b: Extract Organization candidates ─────────────────────────────
+    const orgRe = /\b([A-Z][A-Za-z0-9\s\&'\-]{2,40}\s+(?:Ltd|Limited|LLP|PLC|Corp|Corporation|Inc|Incorporated|Chambers|Partners|Group|Associates|Solicitors))\b/g;
+    while ((match = orgRe.exec(text)) !== null) {
+      orgs.add(match[1].trim());
+    }
+
+    let modifiedText = text;
+
+    // ── Pass 2: Redact all occurrences ───────────────────────────────────────
+    const sortedOrgs = Array.from(orgs).sort((a, b) => b.length - a.length);
+    const sortedNames = Array.from(candidates)
+      .map(name => name.trim())
+      .filter(name => name.length > 0)
+      .sort((a, b) => b.length - a.length);
+
+    // Redact Orgs — start counter from offset so cross-message tokens don't collide
+    let orgCount = tokenOffsets.ORG || 0;
+    let initialOrgCount = orgCount;
+    for (const org of sortedOrgs) {
+      const escaped = org.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const regex = new RegExp(`\\b${escaped}\\b`, 'g');
+      let matched = false;
+      modifiedText = modifiedText.replace(regex, (m) => {
+        if (!matched) {
+          orgCount++;
+          matched = true;
+        }
+        const token = `{ORG_${orgCount}}`;
+        tokens.set(token, m);
+        return token;
+      });
+    }
+    if (orgCount > initialOrgCount) summary['ORG'] = orgCount - initialOrgCount;
+
+    // Redact Names — start counter from offset so cross-message tokens don't collide
+    let nameCount = tokenOffsets.NAME || 0;
+    let initialNameCount = nameCount;
+    for (const name of sortedNames) {
+      const escaped = name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const regex = new RegExp(`\\b${escaped}\\b`, 'gi');
+      let matched = false;
+      modifiedText = modifiedText.replace(regex, (m) => {
+        if (!matched) {
+          nameCount++;
+          matched = true;
+        }
+        const token = `{NAME_${nameCount}}`;
+        tokens.set(token, m);
+        return token;
+      });
+    }
+    if (nameCount > initialNameCount) summary['NAME'] = nameCount - initialNameCount;
+
+    return modifiedText;
+  }
+
+
+  /**
+   * Redacts PII in `text`, replacing each match with a deterministic token.
+   *
+   * @param {string} text - Raw user text
+   * @param {object} [tokenOffsets] - Starting counter for each token type, keyed by type
+   *   (e.g. { NAME: 2, EMAIL: 1 }) so subsequent messages continue numbering from where
+   *   the previous message left off rather than always starting at _1.
+   * @returns {{ redacted: string, tokens: Map<string, string>, summary: object }}
+   */
+  function redact(text, tokenOffsets = {}) {
+    const tokens = new Map();
+    const summary = {};
+    let redacted = text;
+
+    // 1. Redact standard rigid patterns (email, phone, postcode, NI, etc.)
+    for (const { type, regex } of PATTERNS) {
+      let count = tokenOffsets[type] || 0; // continue from existing count
+      regex.lastIndex = 0; // reset stateful regex
+
+      redacted = redacted.replace(regex, (match) => {
+        if (type === 'NHS' && !isValidNhsNumber(match)) {
+          return match;
+        }
+        count++;
+        const token = `{${type}_${count}}`;
+        tokens.set(token, match);
+        return token;
+      });
+
+      if (count > (tokenOffsets[type] || 0)) summary[type] = count - (tokenOffsets[type] || 0);
+    }
+
+    // 2. Redact contextual Names & Orgs
+    redacted = redactNamesAndOrgs(redacted, tokens, summary, tokenOffsets);
+
+    return { redacted, tokens, summary };
+  }
+
+  /**
+   * Restores tokens back to their original values in `text`.
+   *
+   * @param {string} text        - Text containing token placeholders
+   * @param {Map<string,string>} tokenMap - token → original
+   * @returns {string}
+   */
+  function restore(text, tokenMap) {
+    let out = text;
+    for (const [token, original] of tokenMap.entries()) {
+      // Use split/join to replace ALL occurrences without regex edge cases
+      out = out.split(token).join(original);
+    }
+    return out;
+  }
+
+  // ── Expose ───────────────────────────────────────────────────────────────────
+  // Expose on window for MAIN world use
+  global.__ARKN_REGEX__ = { redact, restore };
+
+  console.log('[ARKN] 🧠 Regex engine loaded ✓');
+
+})(typeof window !== 'undefined' ? window : globalThis);

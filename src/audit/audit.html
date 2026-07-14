@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARKN — Compliance & Audit Log</title>
+  <link rel="stylesheet" href="audit.css">
+</head>
+<body>
+
+  <!-- Ambient Glow Backgrounds -->
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="branding">
+        <div class="logo-icon">🛡️</div>
+        <div>
+          <h1 class="logo-text">ARKN</h1>
+          <p class="subtitle">Client-side Compliance Audit Log</p>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="btn-export" class="btn btn-primary">
+          <span>📥</span> Download CSV Report
+        </button>
+        <button id="btn-clear" class="btn btn-danger">
+          <span>🗑️</span> Clear Logs
+        </button>
+      </div>
+    </header>
+
+    <!-- Stats Banner -->
+    <section class="overview-grid" aria-label="Redaction stats breakdown">
+      <div class="stat-box">
+        <span class="stat-box-title">Total Redactions</span>
+        <span id="total-redactions" class="stat-box-value">—</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-box-title">Names &amp; Orgs</span>
+        <span id="stat-names-orgs" class="stat-box-value">—</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-box-title">Financial &amp; Legal</span>
+        <span id="stat-finance-legal" class="stat-box-value">—</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-box-title">Logs Stored</span>
+        <span id="log-count" class="stat-box-value">—</span>
+      </div>
+    </section>
+
+    <!-- Table Card -->
+    <main class="card">
+      <div class="card-header">
+        <h2>30-Day Activity History</h2>
+        <span class="badge">Local Only</span>
+      </div>
+      <div class="table-container">
+        <table id="audit-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>AI Engine</th>
+              <th>Session ID</th>
+              <th>Redaction Breakdown</th>
+            </tr>
+          </thead>
+          <tbody id="audit-tbody">
+            <tr>
+              <td colspan="4" class="empty-state">Loading audit logs...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+
+    <!-- Footer Note -->
+    <footer class="footer">
+      <p>🛡️ Zero PII Policy: ARKN only logs counts and timestamps. The original sensitive values never touch this log, disk, or any network.</p>
+    </footer>
+  </div>
+
+  <script src="audit.js"></script>
+</body>
+</html>
