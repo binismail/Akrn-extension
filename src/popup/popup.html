@@ -11,7 +11,12 @@
   <!-- ── 1. UNAUTHENTICATED VIEW ── -->
   <div id="auth-view" class="view hidden">
     <div class="auth-container">
-      <span class="brand-wordmark">ARKN</span>
+      <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px;">
+        <svg viewBox="0 0 512 512" width="28" height="28" style="border-radius: 6px; background-color: #1A5C38; padding: 2px;">
+          <path d="M136 396V232C136 165.7 189.7 112 256 112C322.3 112 376 165.7 376 232V396H320V232C320 196.7 291.3 168 256 168C220.7 168 192 196.7 192 232V396H136Z" fill="#FFFFFF"/>
+        </svg>
+        <span class="brand-wordmark" style="margin-bottom: 0;">ARKN</span>
+      </div>
       <div class="auth-content">
         <h1 class="auth-title">Protect your AI prompts</h1>
         <p class="auth-desc">Enable enterprise compliance auditing and real-time client-side redaction.</p>
@@ -25,7 +30,10 @@
   <div id="main-view" class="view hidden">
     <!-- Header -->
     <header class="header">
-      <div class="logo">
+      <div class="logo" style="display: flex; align-items: center; gap: 8px;">
+        <svg viewBox="0 0 512 512" width="20" height="20" style="border-radius: 5px; background-color: #1A5C38; padding: 1.5px;">
+          <path d="M136 396V232C136 165.7 189.7 112 256 112C322.3 112 376 165.7 376 232V396H320V232C320 196.7 291.3 168 256 168C220.7 168 192 196.7 192 232V396H136Z" fill="#FFFFFF"/>
+        </svg>
         <span class="logo-text">ARKN</span>
       </div>
       <div id="status-badge" class="status-badge active" aria-live="polite">
