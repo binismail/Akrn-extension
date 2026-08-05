@@ -29159,11 +29159,13 @@ ${t2}`);
       chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         if (message?.type !== "ARKN_NER") return void 0;
         const text = typeof message.text === "string" ? message.text : "";
+        console.log("[ARKN] NER worker request:", { requestId: message.requestId, textLength: text.length });
         if (!text.trim()) {
           sendResponse({ ok: true, spans: [] });
           return true;
         }
         self.__ARKN_NER_RUNNER__(text).then((spans) => {
+          console.log("[ARKN] NER worker response:", { requestId: message.requestId, entities: spans.length });
           sendResponse({ ok: true, spans });
         }).catch((error) => {
           console.warn("[ARKN] NER worker failed:", error.message);

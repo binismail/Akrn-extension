@@ -165,7 +165,10 @@
     const { requestId, text } = event.detail || {};
     if (!isContextValid()) return;
     chrome.runtime.sendMessage({ type: 'ARKN_NER', requestId, text }, (response) => {
-      if (chrome.runtime.lastError || !response) return;
+      if (chrome.runtime.lastError || !response) {
+        console.warn('[ARKN] NER bridge failed:', chrome.runtime.lastError?.message || 'empty response');
+        return;
+      }
       window.dispatchEvent(new CustomEvent('arkn:ner-response', {
         detail: { requestId, text, spans: response.spans || [] },
       }));

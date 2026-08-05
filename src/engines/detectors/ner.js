@@ -37,13 +37,19 @@
   }
 
   global.addEventListener('arkn:ner-response', (event) => {
-    const { requestId: id, text, spans } = event.detail || {};
+    const { requestId: id, text, spans, error } = event.detail || {};
+    const candidates = mapSpans(text, spans);
+    cache.set(text, candidates);
+    console.log('[ARKN] NER response:', {
+      requestId: id,
+      entities: candidates.length,
+      error: error || null,
+    });
+
     const request = pending.get(id);
     if (!request) return;
     pending.delete(id);
     pending.delete(text);
-    const candidates = mapSpans(text, spans);
-    cache.set(text, candidates);
     request.resolve(candidates);
   });
 
@@ -53,6 +59,7 @@
     if (pending.has(text)) return pending.get(text).promise;
 
     const id = ++requestId;
+    console.log('[ARKN] NER request:', { requestId: id, textLength: text.length });
     let timer;
     let resolveRequest;
     const promise = new Promise((resolve) => {
