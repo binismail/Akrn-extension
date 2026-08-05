@@ -160,6 +160,15 @@
     }
   });
 
+  // Start NER warmup as soon as the protected page loads so the first prompt
+  // does not have to pay the model initialization cost.
+  if (isContextValid()) {
+    chrome.runtime.sendMessage({ type: 'ARKN_NER_WARMUP' }, (response) => {
+      if (chrome.runtime.lastError) return;
+      if (response?.ok) console.log('[ARKN] NER warmup requested from content page');
+    });
+  }
+
   // Background NER bridge: MAIN world never imports the model.
   window.addEventListener('arkn:ner-request', (event) => {
     const { requestId, text } = event.detail || {};
