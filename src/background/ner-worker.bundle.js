@@ -29131,6 +29131,10 @@ ${t2}`);
       init_transformers();
       env.allowLocalModels = false;
       env.useBrowserCache = true;
+      if (typeof chrome !== "undefined" && chrome.runtime?.getURL) {
+        env.backends.onnx.wasm.wasmPaths = chrome.runtime.getURL("src/background/onnx-runtime/");
+        env.backends.onnx.wasm.numThreads = 1;
+      }
       var autoPipeline = null;
       async function getPipeline() {
         if (!autoPipeline) {
