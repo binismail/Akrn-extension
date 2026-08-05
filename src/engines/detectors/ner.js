@@ -36,8 +36,17 @@
       .filter(Boolean);
   }
 
+  global.addEventListener('message', (event) => {
+    if (event.source !== global || event.data?.type !== 'ARKN_NER_RESPONSE') return;
+    handleResponse(event.data);
+  });
+
   global.addEventListener('arkn:ner-response', (event) => {
-    const { requestId: id, text, spans, error } = event.detail || {};
+    handleResponse(event.detail);
+  });
+
+  function handleResponse(detail) {
+    const { requestId: id, text, spans, error } = detail || {};
     const candidates = mapSpans(text, spans);
     cache.set(text, candidates);
     console.log('[ARKN] NER response:', {
@@ -51,7 +60,7 @@
     pending.delete(id);
     pending.delete(text);
     request.resolve(candidates);
-  });
+  }
 
   function prefetch(text) {
     if (!text || !text.trim()) return Promise.resolve([]);

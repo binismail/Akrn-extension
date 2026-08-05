@@ -169,9 +169,9 @@
         console.warn('[ARKN] NER bridge failed:', chrome.runtime.lastError?.message || 'empty response');
         return;
       }
-      window.dispatchEvent(new CustomEvent('arkn:ner-response', {
-        detail: { requestId, text, spans: response.spans || [] },
-      }));
+      const detail = { requestId, text, spans: response.spans || [], error: response.error || null };
+      window.postMessage({ type: 'ARKN_NER_RESPONSE', ...detail }, '*');
+      window.dispatchEvent(new CustomEvent('arkn:ner-response', { detail }));
     });
   });
 
