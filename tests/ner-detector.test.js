@@ -41,6 +41,24 @@ test('maps NER spans into ARKN candidates', async () => {
   assert.strictEqual(spans[1].confidence, 0.88);
 });
 
+test('maps BIO entity labels with offsets supplied by the worker', async () => {
+  const promise = detector.prefetch('Femi works at Ascendia Tech');
+  resolveResponse = () => globalThis.__nerResponse({
+    detail: {
+      requestId: 2,
+      text: 'Femi works at Ascendia Tech',
+      spans: [
+        { start: 0, end: 4, entity_group: 'PER', score: 0.91 },
+        { start: 14, end: 27, entity_group: 'ORG', score: 0.89 },
+      ],
+    },
+  });
+  resolveResponse();
+  const spans = await promise;
+  assert.deepStrictEqual(spans.map((span) => span.type), ['NAME', 'ORG']);
+  assert.strictEqual(spans[1].text, 'Ascendia Tech');
+});
+
 async function test(name, fn) {
   try {
     await fn();

@@ -21,13 +21,43 @@ async function getPipeline() {
 
 self.__ARKN_NER_RUNNER__ = async function runNer(text) {
   const recognizer = await getPipeline();
-  const entities = await recognizer(text, { aggregation_strategy: 'simple' });
-  return entities.map((entity) => ({
-    start: entity.start,
-    end: entity.end,
-    text: entity.word,
-    entity_group: entity.entity_group,
-    score: entity.score,
+  const entities = await recognizer(text, { aggregation_strategy: 'none' });
+  const spans = [];
+  let cursor = 0;
+  let current = null;
+
+  for (const entity of entities) {
+    const tag = entity.entity_group || entity.entity || '';
+    const group = tag.replace(/^[BI]-/, '');
+    if (!['PER', 'ORG', 'LOC'].includes(group)) {
+      if (current) spans.push(current);
+      current = null;
+      continue;
+    }
+
+    const piece = String(entity.word || '').replace(/^##/, '');
+    const start = Number.isInteger(entity.start)
+      ? entity.start
+      : text.toLowerCase().indexOf(piece.toLowerCase(), cursor);
+    if (start < 0) continue;
+    const end = Number.isInteger(entity.end) ? entity.end : start + piece.length;
+    const isSubword = String(entity.word || '').startsWith('##');
+    const begins = !current || current.entity_group !== group || start > current.end + 1 || (!isSubword && tag.startsWith('B-'));
+
+    if (begins) {
+      if (current) spans.push(current);
+      current = { start, end, entity_group: group, score: entity.score };
+    } else {
+      current.end = end;
+      current.score = Math.min(current.score, entity.score);
+    }
+    cursor = Math.max(cursor, end);
+  }
+  if (current) spans.push(current);
+
+  return spans.map((span) => ({
+    ...span,
+    text: text.slice(span.start, span.end),
   }));
 };
 
@@ -45,7 +75,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   self.__ARKN_NER_RUNNER__(text)
     .then((spans) => {
-      console.log('[ARKN] NER worker response:', { requestId: message.requestId, entities: spans.length });
+      console.log('[ARKN] NER worker response:', { requestId: message.requestId, entities: spans.length, spans });
       sendResponse({ ok: true, spans });
     })
     .catch((error) => {
