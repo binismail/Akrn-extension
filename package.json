@@ -1,0 +1,29 @@
+{
+  "name": "extension-chrome",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "build:ner": "node scripts/build-ner.js",
+    "test": "node tests/regex-engine.test.js && node tests/pipeline.test.js && node tests/platform-adapter.test.js && node tests/claude-adapter.test.js && node tests/gemini-adapter.test.js && node tests/ner-detector.test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/binismail/Akrn-extension.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/binismail/Akrn-extension/issues"
+  },
+  "homepage": "https://github.com/binismail/Akrn-extension#readme",
+  "devDependencies": {
+    "@xenova/transformers": "^2.17.2",
+    "esbuild": "^0.28.1"
+  }
+}

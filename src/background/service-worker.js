@@ -4,8 +4,8 @@
  * Handles SSO session synchronization from dashboard.
  */
 
-// Import static configurations
-importScripts('../config.js');
+// Import static configurations and the bundled NER worker.
+importScripts('../config.js', './ner-worker.bundle.js');
 
 const SCHEMA_VERSION  = 2;
 const LOG_KEY         = 'arknLog';
@@ -46,6 +46,9 @@ chrome.runtime.onInstalled.addListener(async ({ reason, previousVersion }) => {
     await migrateStorage();
     console.log('[ARKN] Storage migration complete. Schema version:', SCHEMA_VERSION);
   }
+
+  // Warm the NER model without blocking extension startup.
+  globalThis.__ARKN_NER_WARMUP__?.().catch(() => {});
 
   // Immediately send heartbeat after install/reload to mark device online
   sendHeartbeat().catch(() => {});

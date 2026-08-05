@@ -116,6 +116,67 @@
    * @param {{ config: object, adapter: object }} platform
    * @returns {{ body: string, summary: object, modified: boolean }}
    */
+  async function processPayloadAsync(rawBody, platform) {
+    if (!arknEnabled) {
+      return { body: rawBody, summary: {}, modified: false };
+    }
+
+    const engine = global.__ARKN_REGEX__;
+    if (!engine) return { body: rawBody, summary: {}, modified: false };
+
+    let parsed;
+    try {
+      parsed = platform.adapter.parse ? platform.adapter.parse(rawBody) : JSON.parse(rawBody);
+    } catch {
+      return { body: rawBody, summary: {}, modified: false };
+    }
+    if (!parsed) return { body: rawBody, summary: {}, modified: false };
+
+    const sessionId = platform.config.getSessionId(global.location);
+    const aggregateSummary = {};
+    let modified = false;
+    const userMessages = platform.adapter.extractUserMessages(parsed);
+    if (userMessages.length === 0) return { body: rawBody, summary: {}, sessionId, modified: false };
+
+    for (const msg of userMessages) {
+      const tokenOffsets = {};
+      const existing = global.__ARKN_SESSION_TOKENS__[sessionId];
+      if (existing) {
+        for (const [token] of existing) {
+          const match = token.match(/^\{([A-Z0-9_]+)_(\d+)\}$/);
+          if (match) tokenOffsets[match[1]] = Math.max(tokenOffsets[match[1]] || 0, parseInt(match[2], 10));
+        }
+      }
+
+      const redactedParts = [];
+      let msgModified = false;
+      for (const text of msg.getText()) {
+        const result = await engine.redactAsync(text, tokenOffsets, activePolicyConfig);
+        if (result.tokens.size > 0) {
+          storeTokens(sessionId, result.tokens);
+          msgModified = true;
+          modified = true;
+          for (const [type, count] of Object.entries(result.summary)) {
+            aggregateSummary[type] = (aggregateSummary[type] || 0) + count;
+          }
+          redactedParts.push(result.redacted);
+        } else {
+          redactedParts.push(text);
+        }
+      }
+      if (msgModified) msg.setText(redactedParts);
+    }
+
+    return {
+      body: modified
+        ? (platform.adapter.serialize ? platform.adapter.serialize(parsed) : JSON.stringify(parsed))
+        : rawBody,
+      summary: aggregateSummary,
+      sessionId,
+      modified,
+    };
+  }
+
   function processPayload(rawBody, platform) {
     if (!arknEnabled) {
       return { body: rawBody, summary: {}, modified: false };
@@ -246,7 +307,7 @@
         }
 
         if (rawBody) {
-          const { body, summary, sessionId, modified } = processPayload(rawBody, platform);
+          const { body, summary, sessionId, modified } = await processPayloadAsync(rawBody, platform);
           if (modified) {
             emitAuditEvent(sessionId, summary, platform.config.label);
             console.log(LOG, `✅ [${platform.config.label}] Redacted:`, summary);

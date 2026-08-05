@@ -19,7 +19,9 @@
     "https://gemini.google.com/*",
     "http://localhost:3000/*",
     "https://*.up.railway.app/*",
-    "https://umzeixsgchlddlbxhmqi.supabase.co/*"
+    "https://umzeixsgchlddlbxhmqi.supabase.co/*",
+    "https://huggingface.co/*",
+    "https://cdn-lfs.huggingface.co/*"
   ],
 
   "background": {
@@ -46,6 +48,7 @@
         "src/engines/detectors/claim.js",
         "src/engines/detectors/name.js",
         "src/engines/detectors/org.js",
+        "src/engines/detectors/ner.js",
         "src/engines/merger.js",
         "src/engines/scorer.js",
         "src/engines/policy.js",

@@ -160,8 +160,25 @@
     }
   });
 
+  // Background NER bridge: MAIN world never imports the model.
+  window.addEventListener('arkn:ner-request', (event) => {
+    const { requestId, text } = event.detail || {};
+    if (!isContextValid()) return;
+    chrome.runtime.sendMessage({ type: 'ARKN_NER', requestId, text }, (response) => {
+      if (chrome.runtime.lastError || !response) return;
+      window.dispatchEvent(new CustomEvent('arkn:ner-response', {
+        detail: { requestId, text, spans: response.spans || [] },
+      }));
+    });
+  });
+
   // Listen for updates from background service worker / popup
   chrome.runtime.onMessage.addListener((message) => {
+    if (message.type === 'ARKN_NER_RESPONSE') {
+      window.dispatchEvent(new CustomEvent('arkn:ner-response', {
+        detail: message,
+      }));
+    }
     if (message.type === 'ARKN_ENABLED_CHANGED') {
       arknEnabled = message.enabled;
       dispatchEnabledStatus();

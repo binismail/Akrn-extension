@@ -160,6 +160,13 @@
     return candidates;
   }
 
+  async function redactAsync(text, tokenOffsets, policyConfig) {
+    if (global.__ARKN_NER__ && typeof global.__ARKN_NER__.prefetch === 'function') {
+      await global.__ARKN_NER__.prefetch(text);
+    }
+    return redact(text, tokenOffsets, policyConfig);
+  }
+
   /**
    * Restores tokens back to original values.
    *
@@ -172,7 +179,7 @@
   }
 
   // ── Expose same API as old regex-engine.js ──────────────────────────────
-  global.__ARKN_REGEX__ = { redact, restore };
+  global.__ARKN_REGEX__ = { redact, redactAsync, restore };
 
   console.log(`[ARKN] 🧠 Pipeline loaded (${detectors.length} detectors) ✓`);
 
