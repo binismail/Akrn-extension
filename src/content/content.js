@@ -163,7 +163,11 @@
   // Background NER bridge: MAIN world never imports the model.
   window.addEventListener('arkn:ner-request', (event) => {
     const { requestId, text } = event.detail || {};
-    if (!isContextValid()) return;
+    if (!isContextValid()) {
+      console.warn('[ARKN] NER bridge unavailable: extension context invalidated. Reload this tab.');
+      window.postMessage({ type: 'ARKN_NER_RESPONSE', requestId, text, spans: [], error: 'context-invalidated' }, '*');
+      return;
+    }
     chrome.runtime.sendMessage({ type: 'ARKN_NER', requestId, text }, (response) => {
       if (chrome.runtime.lastError || !response) {
         console.warn('[ARKN] NER bridge failed:', chrome.runtime.lastError?.message || 'empty response');
