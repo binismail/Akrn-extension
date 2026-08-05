@@ -21,7 +21,8 @@ async function getPipeline() {
 
 self.__ARKN_NER_RUNNER__ = async function runNer(text) {
   const recognizer = await getPipeline();
-  const entities = await recognizer(text, { aggregation_strategy: 'none' });
+  const modelText = text.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
+  const entities = await recognizer(modelText, { aggregation_strategy: 'none' });
   const spans = [];
   let cursor = 0;
   let current = null;

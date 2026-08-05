@@ -59,6 +59,25 @@ test('maps BIO entity labels with offsets supplied by the worker', async () => {
   assert.strictEqual(spans[1].text, 'Ascendia Tech');
 });
 
+test('supports lowercase names and organisations after worker normalization', async () => {
+  const text = 'draft and email with address location etc of femi balogun, lagos nigeria with number 08138558745,, for a letter to ascendia tech talking about wanting more salary email is l: femi.balogun@email.com';
+  const promise = detector.prefetch(text);
+  resolveResponse = () => globalThis.__nerResponse({
+    detail: {
+      requestId: 3,
+      text,
+      spans: [
+        { start: 45, end: 57, entity_group: 'PER', score: 0.99 },
+        { start: 115, end: 128, entity_group: 'ORG', score: 0.99 },
+      ],
+    },
+  });
+  resolveResponse();
+  const spans = await promise;
+  assert.deepStrictEqual(spans.map((span) => span.type), ['NAME', 'ORG']);
+  assert.deepStrictEqual(spans.map((span) => span.text), ['femi balogun', 'ascendia tech']);
+});
+
 async function test(name, fn) {
   try {
     await fn();
