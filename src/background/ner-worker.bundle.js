@@ -29136,6 +29136,7 @@ ${t2}`);
         env.backends.onnx.wasm.numThreads = 1;
       }
       var autoPipeline = null;
+      var nerReady = null;
       async function getPipeline() {
         if (!autoPipeline) {
           autoPipeline = pipeline("token-classification", "onnx-community/distilbert-NER-ONNX", {
@@ -29144,8 +29145,23 @@ ${t2}`);
         }
         return autoPipeline;
       }
+      function warmupNer() {
+        if (!nerReady) {
+          const startedAt = performance.now();
+          nerReady = getPipeline().then((recognizer) => {
+            console.log("[ARKN] NER model ready:", Math.round(performance.now() - startedAt), "ms");
+            return recognizer;
+          }).catch((error) => {
+            nerReady = null;
+            console.warn("[ARKN] NER warmup failed:", error.message);
+            throw error;
+          });
+        }
+        return nerReady;
+      }
+      self.__ARKN_NER_WARMUP__ = warmupNer;
       self.__ARKN_NER_RUNNER__ = async function runNer(text) {
-        const recognizer = await getPipeline();
+        const recognizer = await warmupNer();
         const modelText = text.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
         const entities = await recognizer(modelText, { aggregation_strategy: "none" });
         const inputIds = recognizer.tokenizer(modelText).input_ids.data;
@@ -29222,7 +29238,7 @@ ${t2}`);
       });
       chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         if (message?.type !== "ARKN_NER_WARMUP") return void 0;
-        getPipeline().then(() => sendResponse({ ok: true })).catch((error) => sendResponse({ ok: false, error: error.message }));
+        warmupNer().then(() => sendResponse({ ok: true })).catch((error) => sendResponse({ ok: false, error: error.message }));
         return true;
       });
     }

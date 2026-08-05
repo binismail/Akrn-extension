@@ -10,6 +10,8 @@ importScripts(
   chrome.runtime.getURL('src/background/ner-worker.bundle.js')
 );
 
+globalThis.__ARKN_NER_WARMUP__?.().catch(() => {});
+
 const SCHEMA_VERSION  = 2;
 const LOG_KEY         = 'arknLog';
 const ENABLED_KEY     = 'arknEnabled';

@@ -67,8 +67,9 @@
       timer = setTimeout(() => {
         pending.delete(text);
         pending.delete(id);
+        console.warn('[ARKN] NER request timed out; regex fallback used:', { requestId: id });
         resolve([]);
-      }, 300);
+      }, 2000);
     });
 
     pending.set(text, { promise, resolve: (value) => {
