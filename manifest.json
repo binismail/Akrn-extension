@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ARKN",
   "short_name": "ARKN",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Protect sensitive information before it reaches ChatGPT, Claude, and Gemini. Browser-first AI security for teams.",
 
   "icons": {

@@ -12,6 +12,7 @@ importScripts(
 
 globalThis.__ARKN_NER_WARMUP__?.().catch(() => {});
 
+const EXTENSION_VERSION = '0.3.0';
 const SCHEMA_VERSION  = 2;
 const LOG_KEY         = 'arknLog';
 const ENABLED_KEY     = 'arknEnabled';
@@ -288,7 +289,7 @@ async function syncSession(payload) {
           headers: authHeader,
           body: JSON.stringify({
             last_seen_at: new Date().toISOString(),
-            extension_version: "0.2.0"
+            extension_version: EXTENSION_VERSION
           })
         });
       } catch (patchErr) {
@@ -307,7 +308,7 @@ async function syncSession(payload) {
           device_name: `${user.user_metadata?.full_name || 'Team member'}'s ${osName}`,
           browser: browserName,
           os: osName,
-          extension_version: "0.2.0"
+          extension_version: EXTENSION_VERSION
         })
       });
 

@@ -17,6 +17,10 @@
     'notify', 'inform', 'consult', 'hire', 'sue', 'instruct', 'retain'
   ]);
 
+  // Contextual capture for organisations without legal suffixes, such as
+  // "at Canon Ideas in Lagos" or "at Starterslab in Lagos".
+  const CONTEXT_REGEX = /\b(?:at|from|with|for)\s+([A-Z][A-Za-z0-9&'\-]*(?:\s+[A-Z][A-Za-z0-9&'\-]*){0,3})(?=\s+(?:in|near|on)\b|\s*[,\.?!]|$)/g;
+
   function detect(text) {
     REGEX.lastIndex = 0;
     const candidates = [];
@@ -43,7 +47,22 @@
         candidates.push(create(orgStart, orgStart + orgText.length, orgText, 'ORG', 0.90, 'regex-org'));
       }
     }
-    return candidates;
+    CONTEXT_REGEX.lastIndex = 0;
+    while ((m = CONTEXT_REGEX.exec(text)) !== null) {
+      const orgText = m[1].trim();
+      const orgStart = m.index + m[0].indexOf(m[1]);
+      const words = orgText.split(/\s+/);
+      const hasNameSignal = /^[A-Z]/.test(orgText) || words.length > 1;
+      if (!hasNameSignal || words.some((word) => STRIP_LEADING.has(word.toLowerCase()))) continue;
+      const duplicate = candidates.some((candidate) =>
+        candidate.start === orgStart && candidate.end === orgStart + orgText.length
+      );
+      if (!duplicate) {
+        candidates.push(create(orgStart, orgStart + orgText.length, orgText, 'ORG', 0.82, 'context-org'));
+      }
+    }
+
+    return candidates.sort((a, b) => a.start - b.start);
   }
 
   global.__ARKN_DETECTORS__.push({ id: 'regex-org', detect });
