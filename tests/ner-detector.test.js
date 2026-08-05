@@ -78,6 +78,24 @@ test('supports lowercase names and organisations after worker normalization', as
   assert.deepStrictEqual(spans.map((span) => span.text), ['femi balogun', 'ascendia tech']);
 });
 
+test('keeps adjacent person and location entities separate', async () => {
+  const text = 'femi balogun, lagos nigeria';
+  const promise = detector.prefetch(text);
+  resolveResponse = () => globalThis.__nerResponse({
+    detail: {
+      requestId: 4,
+      text,
+      spans: [
+        { start: 0, end: 12, entity_group: 'PER', score: 0.99 },
+        { start: 14, end: 27, entity_group: 'LOC', score: 0.99 },
+      ],
+    },
+  });
+  resolveResponse();
+  const spans = await promise;
+  assert.deepStrictEqual(spans.map((span) => span.text), ['femi balogun', 'lagos nigeria']);
+});
+
 async function test(name, fn) {
   try {
     await fn();

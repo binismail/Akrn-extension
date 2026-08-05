@@ -69,7 +69,10 @@ self.__ARKN_NER_RUNNER__ = async function runNer(text) {
 
     const tokenIndex = Number(entity.index);
     if (!Number.isInteger(tokenIndex)) continue;
-    const isContinuation = current && tokenIndex <= current.tokenEnd + 2;
+    const isSubword = String(entity.word || '').startsWith('##');
+    const isContinuation = current &&
+      ((isSubword && tokenIndex <= current.tokenEnd + 2) ||
+        (tag.startsWith('I-') && group === current.groups[0] && tokenIndex <= current.tokenEnd + 2));
     if (!isContinuation) {
       flush();
       current = {
