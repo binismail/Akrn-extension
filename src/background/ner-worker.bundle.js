@@ -29134,7 +29134,7 @@ ${t2}`);
       var autoPipeline = null;
       async function getPipeline() {
         if (!autoPipeline) {
-          autoPipeline = pipeline("token-classification", "Xenova/distilbert-base-NER", {
+          autoPipeline = pipeline("token-classification", "onnx-community/distilbert-NER-ONNX", {
             quantized: true
           });
         }
