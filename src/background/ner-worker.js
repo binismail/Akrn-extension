@@ -23,43 +23,70 @@ self.__ARKN_NER_RUNNER__ = async function runNer(text) {
   const recognizer = await getPipeline();
   const modelText = text.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
   const entities = await recognizer(modelText, { aggregation_strategy: 'none' });
+  const inputIds = recognizer.tokenizer(modelText).input_ids.data;
   const spans = [];
   let cursor = 0;
   let current = null;
 
+  function flush() {
+    if (!current) return;
+    const tokenIds = Array.from(inputIds.slice(current.tokenStart, current.tokenEnd + 1));
+    const decoded = recognizer.tokenizer.decode(tokenIds, { skip_special_tokens: true }).trim();
+    const start = modelText.toLowerCase().indexOf(decoded.toLowerCase(), cursor);
+    if (start >= 0 && decoded.split(/\s+/).length >= 2) {
+      const inferredGroup = current.groups[0] === 'MISC'
+        ? 'PER'
+        : current.groups[0] === 'ORG'
+          ? 'ORG'
+          : current.groups[0] === 'PER'
+            ? 'PER'
+            : current.groups[0] === 'LOC'
+              ? 'LOC'
+              : null;
+      if (!inferredGroup) {
+        current = null;
+        return;
+      }
+      spans.push({
+        start,
+        end: start + decoded.length,
+        entity_group: inferredGroup,
+        score: Math.max(current.score, 0.72),
+        text: text.slice(start, start + decoded.length),
+      });
+      cursor = start + decoded.length;
+    }
+    current = null;
+  }
+
   for (const entity of entities) {
     const tag = entity.entity_group || entity.entity || '';
     const group = tag.replace(/^[BI]-/, '');
-    if (!['PER', 'ORG', 'LOC'].includes(group)) {
-      if (current) spans.push(current);
-      current = null;
+    if (!['PER', 'ORG', 'LOC', 'MISC'].includes(group)) {
+      flush();
       continue;
     }
 
-    const piece = String(entity.word || '').replace(/^##/, '');
-    const start = Number.isInteger(entity.start)
-      ? entity.start
-      : text.toLowerCase().indexOf(piece.toLowerCase(), cursor);
-    if (start < 0) continue;
-    const end = Number.isInteger(entity.end) ? entity.end : start + piece.length;
-    const isSubword = String(entity.word || '').startsWith('##');
-    const begins = !current || current.entity_group !== group || start > current.end + 1 || (!isSubword && tag.startsWith('B-'));
-
-    if (begins) {
-      if (current) spans.push(current);
-      current = { start, end, entity_group: group, score: entity.score };
+    const tokenIndex = Number(entity.index);
+    if (!Number.isInteger(tokenIndex)) continue;
+    const isContinuation = current && tokenIndex <= current.tokenEnd + 2;
+    if (!isContinuation) {
+      flush();
+      current = {
+        tokenStart: tokenIndex,
+        tokenEnd: tokenIndex,
+        groups: [group],
+        score: Number(entity.score) || 0,
+      };
     } else {
-      current.end = end;
-      current.score = Math.min(current.score, entity.score);
+      current.tokenEnd = tokenIndex;
+      if (!current.groups.includes(group)) current.groups.push(group);
+      current.score = Math.min(current.score, Number(entity.score) || 0);
     }
-    cursor = Math.max(cursor, end);
   }
-  if (current) spans.push(current);
+  flush();
 
-  return spans.map((span) => ({
-    ...span,
-    text: text.slice(span.start, span.end),
-  }));
+  return spans;
 };
 
 self.__ARKN_NER_WARMUP__ = getPipeline;
