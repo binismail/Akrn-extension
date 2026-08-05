@@ -216,6 +216,14 @@ test('matches literal custom rule (case-insensitive + boundary)', () => {
   assert.strictEqual(summary.PROJECT_ATHENA, 1);
 });
 
+test('accepts async NER candidates directly', () => {
+  const text = 'Please contact femi balogun at ascendia tech';
+  const candidate = pipeline.createCandidate(15, 27, 'femi balogun', 'NAME', 0.72, 'ner-distilbert');
+  const { redacted, summary } = engine.redact(text, {}, {}, [candidate]);
+  assert.ok(redacted.includes('{NAME_1}'));
+  assert.strictEqual(summary.NAME, 1);
+});
+
 test('matches regex custom rule', () => {
   const text = 'Refer to billing code REF-12345 in accounting';
   const policyConfig = {

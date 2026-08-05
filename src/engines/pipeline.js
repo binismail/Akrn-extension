@@ -22,7 +22,7 @@
    * @param {object} [policyConfig]   — Active policy configuration (threshold, enabled types)
    * @returns {{ redacted: string, tokens: Map<string,string>, summary: object }}
    */
-  function redact(text, tokenOffsets, policyConfig) {
+  function redact(text, tokenOffsets, policyConfig, extraCandidates) {
     tokenOffsets = tokenOffsets || {};
 
     // ── Step 1: Run all detectors ──────────────────────────────────────────
@@ -39,6 +39,10 @@
       } catch (err) {
         console.warn(`[ARKN] Detector "${detector.id}" error:`, err);
       }
+    }
+
+    if (Array.isArray(extraCandidates) && extraCandidates.length > 0) {
+      allCandidates = allCandidates.concat(extraCandidates);
     }
 
     // ── Run custom rules if present in the active policy config ────────────────
@@ -164,12 +168,13 @@
   }
 
   async function redactAsync(text, tokenOffsets, policyConfig) {
+    let nerCandidates = [];
     if (global.__ARKN_NER__ && typeof global.__ARKN_NER__.prefetch === 'function') {
-      await global.__ARKN_NER__.prefetch(text);
+      nerCandidates = await global.__ARKN_NER__.prefetch(text);
     }
-    const result = redact(text, tokenOffsets, policyConfig);
+    const result = redact(text, tokenOffsets, policyConfig, nerCandidates);
     console.log('[ARKN] Async redact result:', {
-      nerCandidates: global.__ARKN_NER__?.detect(text)?.length || 0,
+      nerCandidates: nerCandidates.length,
       tokens: result.tokens.size,
       summary: result.summary,
     });
