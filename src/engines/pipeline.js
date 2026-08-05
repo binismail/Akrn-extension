@@ -31,6 +31,9 @@
       try {
         const found = detector.detect(text);
         if (found && found.length > 0) {
+          if (detector.id === 'ner-distilbert') {
+            console.log('[ARKN] NER detector candidates:', found);
+          }
           allCandidates = allCandidates.concat(found);
         }
       } catch (err) {
@@ -164,7 +167,13 @@
     if (global.__ARKN_NER__ && typeof global.__ARKN_NER__.prefetch === 'function') {
       await global.__ARKN_NER__.prefetch(text);
     }
-    return redact(text, tokenOffsets, policyConfig);
+    const result = redact(text, tokenOffsets, policyConfig);
+    console.log('[ARKN] Async redact result:', {
+      nerCandidates: global.__ARKN_NER__?.detect(text)?.length || 0,
+      tokens: result.tokens.size,
+      summary: result.summary,
+    });
+    return result;
   }
 
   /**
