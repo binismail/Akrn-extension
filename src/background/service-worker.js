@@ -4,8 +4,11 @@
  * Handles SSO session synchronization from dashboard.
  */
 
-// Import static configurations and the bundled NER worker.
-importScripts('../config.js', './ner-worker.bundle.js');
+// Import static configurations and the bundled NER worker using explicit MV3 URLs.
+importScripts(
+  chrome.runtime.getURL('src/config.js'),
+  chrome.runtime.getURL('src/background/ner-worker.bundle.js')
+);
 
 const SCHEMA_VERSION  = 2;
 const LOG_KEY         = 'arknLog';
