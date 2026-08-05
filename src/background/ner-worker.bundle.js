@@ -29179,13 +29179,38 @@ ${t2}`);
               current = null;
               return;
             }
-            spans.push({
-              start,
-              end: start + decoded.length,
-              entity_group: inferredGroup,
-              score: Math.max(current.score, 0.72),
-              text: text.slice(start, start + decoded.length)
-            });
+            const connector = decoded.match(/\s+(in|at|from|near)\s+/i);
+            if (inferredGroup === "ORG" && connector) {
+              const orgText = decoded.slice(0, connector.index).trim();
+              const locationText = decoded.slice(connector.index + connector[0].length).trim();
+              if (orgText.split(/\s+/).length >= 2) {
+                spans.push({
+                  start,
+                  end: start + orgText.length,
+                  entity_group: "ORG",
+                  score: Math.max(current.score, 0.72),
+                  text: text.slice(start, start + orgText.length)
+                });
+              }
+              if (locationText) {
+                const locationStart = start + connector.index + connector[0].length;
+                spans.push({
+                  start: locationStart,
+                  end: locationStart + locationText.length,
+                  entity_group: "LOC",
+                  score: Math.max(current.score, 0.72),
+                  text: text.slice(locationStart, locationStart + locationText.length)
+                });
+              }
+            } else {
+              spans.push({
+                start,
+                end: start + decoded.length,
+                entity_group: inferredGroup,
+                score: Math.max(current.score, 0.72),
+                text: text.slice(start, start + decoded.length)
+              });
+            }
             cursor = start + decoded.length;
           }
           current = null;
