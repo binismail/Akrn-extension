@@ -146,6 +146,8 @@ test('name propagation across paragraphs', () => {
   assert.ok(redacted.includes('that {NAME_1} has'), 'Second occurrence should be propagated and redacted');
 });
 test('organization with suffix', () => assertRedacts('Contact Alpha Chambers LLP today.', 'ORG'));
+test('context organization without suffix', () => assertRedacts('Draft an email to Femi Balogun at Canon Ideas in Lagos.', 'ORG'));
+test('single-word context organization without suffix', () => assertRedacts('Draft an email to Femi Balogun at Starterslab in Lagos.', 'ORG'));
 test('name & organization round-trip', () => roundTrip('Dear Khalid, please contact Alpha Chambers LLP.'));
 
 // ─────────────────────────────────────────────────────────────────────────────

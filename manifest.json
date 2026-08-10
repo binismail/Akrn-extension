@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ARKN",
   "short_name": "ARKN",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Protect sensitive information before it reaches ChatGPT, Claude, and Gemini. Browser-first AI security for teams.",
 
   "icons": {
@@ -18,7 +18,7 @@
     "https://claude.ai/*",
     "https://gemini.google.com/*",
     "http://localhost:3000/*",
-    "https://*.up.railway.app/*",
+    "https://myarkn.ai/*",
     "https://umzeixsgchlddlbxhmqi.supabase.co/*",
     "https://huggingface.co/*",
     "https://cdn-lfs.huggingface.co/*"
