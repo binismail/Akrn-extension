@@ -29135,6 +29135,108 @@ ${t2}`);
         env.backends.onnx.wasm.wasmPaths = chrome.runtime.getURL("src/background/onnx-runtime/");
         env.backends.onnx.wasm.numThreads = 1;
       }
+      var COMMON_WORDS = /* @__PURE__ */ new Set([
+        "a",
+        "an",
+        "the",
+        "and",
+        "or",
+        "but",
+        "of",
+        "to",
+        "in",
+        "on",
+        "at",
+        "by",
+        "for",
+        "with",
+        "from",
+        "about",
+        "after",
+        "before",
+        "into",
+        "over",
+        "under",
+        "will",
+        "would",
+        "could",
+        "should",
+        "shall",
+        "may",
+        "might",
+        "must",
+        "can",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "done",
+        "not",
+        "no",
+        "yes",
+        "this",
+        "that",
+        "these",
+        "those",
+        "my",
+        "your",
+        "his",
+        "her",
+        "its",
+        "our",
+        "their",
+        "me",
+        "you",
+        "him",
+        "us",
+        "them",
+        "it",
+        "i",
+        "we",
+        "they",
+        "he",
+        "she",
+        "tomorrow",
+        "today",
+        "yesterday",
+        "now",
+        "then",
+        "here",
+        "there",
+        "please",
+        "ask",
+        "tell",
+        "called",
+        "call",
+        "contact",
+        "email",
+        "meet",
+        "send",
+        "review",
+        "update",
+        "join",
+        "talk",
+        "speak",
+        "attend",
+        "about",
+        "the",
+        "will",
+        "and",
+        "for",
+        "with",
+        "case",
+        "meeting",
+        "letter"
+      ]);
       var autoPipeline = null;
       var nerReady = null;
       async function getPipeline() {
@@ -29165,54 +29267,11 @@ ${t2}`);
         const modelText = text.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
         const entities = await recognizer(modelText, { aggregation_strategy: "none" });
         const inputIds = recognizer.tokenizer(modelText).input_ids.data;
-        const spans = [];
-        let cursor = 0;
+        const groups = [];
         let current = null;
         function flush() {
           if (!current) return;
-          const tokenIds = Array.from(inputIds.slice(current.tokenStart, current.tokenEnd + 1));
-          const decoded = recognizer.tokenizer.decode(tokenIds, { skip_special_tokens: true }).trim();
-          const start = modelText.toLowerCase().indexOf(decoded.toLowerCase(), cursor);
-          if (start >= 0 && decoded.split(/\s+/).length >= 2) {
-            const inferredGroup = current.groups[0] === "MISC" ? "PER" : current.groups[0] === "ORG" ? "ORG" : current.groups[0] === "PER" ? "PER" : current.groups[0] === "LOC" ? "LOC" : null;
-            if (!inferredGroup) {
-              current = null;
-              return;
-            }
-            const connector = decoded.match(/\s+(in|at|from|near)\s+/i);
-            if (inferredGroup === "ORG" && connector) {
-              const orgText = decoded.slice(0, connector.index).trim();
-              const locationText = decoded.slice(connector.index + connector[0].length).trim();
-              if (orgText.split(/\s+/).length >= 2) {
-                spans.push({
-                  start,
-                  end: start + orgText.length,
-                  entity_group: "ORG",
-                  score: Math.max(current.score, 0.72),
-                  text: text.slice(start, start + orgText.length)
-                });
-              }
-              if (locationText) {
-                const locationStart = start + connector.index + connector[0].length;
-                spans.push({
-                  start: locationStart,
-                  end: locationStart + locationText.length,
-                  entity_group: "LOC",
-                  score: Math.max(current.score, 0.72),
-                  text: text.slice(locationStart, locationStart + locationText.length)
-                });
-              }
-            } else {
-              spans.push({
-                start,
-                end: start + decoded.length,
-                entity_group: inferredGroup,
-                score: Math.max(current.score, 0.72),
-                text: text.slice(start, start + decoded.length)
-              });
-            }
-            cursor = start + decoded.length;
-          }
+          groups.push(current);
           current = null;
         }
         for (const entity of entities) {
@@ -29224,8 +29283,18 @@ ${t2}`);
           }
           const tokenIndex = Number(entity.index);
           if (!Number.isInteger(tokenIndex)) continue;
+          const wordLower = String(entity.word || "").toLowerCase();
+          if (group === "PER" && !wordLower.startsWith("##") && COMMON_WORDS.has(wordLower)) {
+            flush();
+            continue;
+          }
           const isSubword = String(entity.word || "").startsWith("##");
-          const isContinuation = current && (isSubword && tokenIndex <= current.tokenEnd + 2 || tag.startsWith("I-") && group === current.groups[0] && tokenIndex <= current.tokenEnd + 2);
+          const isNewBegin = tag.startsWith("B-") && !isSubword;
+          const isGap = current && tokenIndex > current.tokenEnd + 2;
+          const isSubwordContinue = current && isSubword && tokenIndex <= current.tokenEnd + 2;
+          const isContinuation = isSubwordContinue || current && !isNewBegin && !isGap && (tag.startsWith("I-") && group === current.groups[0] || // Adjacent name parts may be tagged B-PER + B-PER (no gap); merge
+          // them so "Femi Balogun" stays one span.
+          group === "PER" && current.groups[0] === "PER");
           if (!isContinuation) {
             flush();
             current = {
@@ -29241,9 +29310,34 @@ ${t2}`);
           }
         }
         flush();
+        const spans = [];
+        let cursor = 0;
+        for (const g of groups) {
+          const tokenIds = Array.from(inputIds.slice(g.tokenStart, g.tokenEnd + 1));
+          const decoded = recognizer.tokenizer.decode(tokenIds, { skip_special_tokens: true }).trim();
+          if (!decoded) continue;
+          const inferredGroup = g.groups[0] === "MISC" ? "PER" : g.groups[0] === "ORG" ? "ORG" : g.groups[0] === "PER" ? "PER" : g.groups[0] === "LOC" ? "LOC" : null;
+          if (!inferredGroup) continue;
+          const start = modelText.toLowerCase().indexOf(decoded.toLowerCase(), cursor);
+          if (start < 0) continue;
+          const rawEnd = start + decoded.length;
+          let end = rawEnd;
+          while (end > start && /\s/.test(modelText[end - 1])) end--;
+          const sourceText = text.slice(start, end);
+          if (!sourceText.trim()) continue;
+          const before = text.slice(Math.max(0, start - 2), start);
+          if (/[@.]$/.test(before)) continue;
+          spans.push({
+            start,
+            end,
+            entity_group: inferredGroup,
+            score: Math.max(g.score, 0.72),
+            text: sourceText.trim()
+          });
+          cursor = end;
+        }
         return spans;
       };
-      self.__ARKN_NER_WARMUP__ = getPipeline;
       chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         if (message?.type !== "ARKN_NER") return void 0;
         const text = typeof message.text === "string" ? message.text : "";

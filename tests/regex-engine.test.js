@@ -149,6 +149,16 @@ test('organization with suffix', () => assertRedacts('Contact Alpha Chambers LLP
 test('context organization without suffix', () => assertRedacts('Draft an email to Femi Balogun at Canon Ideas in Lagos.', 'ORG'));
 test('single-word context organization without suffix', () => assertRedacts('Draft an email to Femi Balogun at Starterslab in Lagos.', 'ORG'));
 test('name & organization round-trip', () => roundTrip('Dear Khalid, please contact Alpha Chambers LLP.'));
+test('lowercase full name in contact-reference context', () => {
+  const text = 'draft and email with address location etc of femi balogun, lagos nigeria with number 08138558745, for a letter to ascendia tech talking about wanting more salary email is: femi.balogun@email.com';
+  const { redacted, tokens } = engine.redact(text);
+  assert.ok(tokens.has('{NAME_1}'), `Expected full lowercase name token — got: "${redacted}"`);
+  assert.strictEqual(tokens.get('{NAME_1}'), 'femi balogun');
+  assert.ok(!redacted.includes('femi balogun'), `Name should be redacted — got: "${redacted}"`);
+});
+test('ordinary phrase after of is not treated as a name', () => {
+  assertNotRedacted('I need a summary of current market conditions.');
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 console.log('\n🌍  Global Name Dictionary\n');

@@ -8,6 +8,23 @@ if (typeof chrome !== 'undefined' && chrome.runtime?.getURL) {
   env.backends.onnx.wasm.numThreads = 1;
 }
 
+// Common English words that the NER model sometimes mislabels as PER
+// (e.g. "Tomorrow", "Will", "Called", "Tell"). These are never name
+// components, so they must not extend a person span.
+const COMMON_WORDS = new Set([
+  'a', 'an', 'the', 'and', 'or', 'but', 'of', 'to', 'in', 'on', 'at', 'by',
+  'for', 'with', 'from', 'about', 'after', 'before', 'into', 'over', 'under',
+  'will', 'would', 'could', 'should', 'shall', 'may', 'might', 'must', 'can',
+  'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had',
+  'do', 'does', 'did', 'done', 'not', 'no', 'yes', 'this', 'that', 'these',
+  'those', 'my', 'your', 'his', 'her', 'its', 'our', 'their', 'me', 'you',
+  'him', 'us', 'them', 'it', 'i', 'we', 'they', 'he', 'she',
+  'tomorrow', 'today', 'yesterday', 'now', 'then', 'here', 'there',
+  'please', 'ask', 'tell', 'called', 'call', 'contact', 'email', 'meet',
+  'send', 'review', 'update', 'join', 'talk', 'speak', 'attend', 'about',
+  'the', 'will', 'and', 'for', 'with', 'case', 'meeting', 'letter',
+]);
+
 let autoPipeline = null;
 let nerReady = null;
 
@@ -41,66 +58,21 @@ self.__ARKN_NER_WARMUP__ = warmupNer;
 
 self.__ARKN_NER_RUNNER__ = async function runNer(text) {
   const recognizer = await warmupNer();
+  // This cased DistilBERT model recognizes entity names far better when they
+  // are capitalized, but lower-case prompts are common. Run inference on a
+  // title-cased copy (only for recall) while keeping the original text for
+  // exact offset mapping and token values.
   const modelText = text.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
   const entities = await recognizer(modelText, { aggregation_strategy: 'none' });
   const inputIds = recognizer.tokenizer(modelText).input_ids.data;
-  const spans = [];
-  let cursor = 0;
+
+  // ── Group entity tokens into typed spans using BIO + index continuity ──────
+  const groups = [];
   let current = null;
 
   function flush() {
     if (!current) return;
-    const tokenIds = Array.from(inputIds.slice(current.tokenStart, current.tokenEnd + 1));
-    const decoded = recognizer.tokenizer.decode(tokenIds, { skip_special_tokens: true }).trim();
-    const start = modelText.toLowerCase().indexOf(decoded.toLowerCase(), cursor);
-    if (start >= 0 && decoded.split(/\s+/).length >= 2) {
-      const inferredGroup = current.groups[0] === 'MISC'
-        ? 'PER'
-        : current.groups[0] === 'ORG'
-          ? 'ORG'
-          : current.groups[0] === 'PER'
-            ? 'PER'
-            : current.groups[0] === 'LOC'
-              ? 'LOC'
-              : null;
-      if (!inferredGroup) {
-        current = null;
-        return;
-      }
-      const connector = decoded.match(/\s+(in|at|from|near)\s+/i);
-      if (inferredGroup === 'ORG' && connector) {
-        const orgText = decoded.slice(0, connector.index).trim();
-        const locationText = decoded.slice(connector.index + connector[0].length).trim();
-        if (orgText.split(/\s+/).length >= 2) {
-          spans.push({
-            start,
-            end: start + orgText.length,
-            entity_group: 'ORG',
-            score: Math.max(current.score, 0.72),
-            text: text.slice(start, start + orgText.length),
-          });
-        }
-        if (locationText) {
-          const locationStart = start + connector.index + connector[0].length;
-          spans.push({
-            start: locationStart,
-            end: locationStart + locationText.length,
-            entity_group: 'LOC',
-            score: Math.max(current.score, 0.72),
-            text: text.slice(locationStart, locationStart + locationText.length),
-          });
-        }
-      } else {
-        spans.push({
-          start,
-          end: start + decoded.length,
-          entity_group: inferredGroup,
-          score: Math.max(current.score, 0.72),
-          text: text.slice(start, start + decoded.length),
-        });
-      }
-      cursor = start + decoded.length;
-    }
+    groups.push(current);
     current = null;
   }
 
@@ -114,10 +86,38 @@ self.__ARKN_NER_RUNNER__ = async function runNer(text) {
 
     const tokenIndex = Number(entity.index);
     if (!Number.isInteger(tokenIndex)) continue;
+
+    // The model sometimes tags common English words (Tomorrow, Will, Called)
+    // as PER. These must not extend or start a person span.
+    const wordLower = String(entity.word || '').toLowerCase();
+    if (group === 'PER' && !wordLower.startsWith('##') && COMMON_WORDS.has(wordLower)) {
+      flush();
+      continue;
+    }
+
     const isSubword = String(entity.word || '').startsWith('##');
-    const isContinuation = current &&
-      ((isSubword && tokenIndex <= current.tokenEnd + 2) ||
-        (tag.startsWith('I-') && group === current.groups[0] && tokenIndex <= current.tokenEnd + 2));
+    // A new B-* label always begins a new entity boundary, even when it
+    // continues the same type (e.g. "B-PER ... B-PER"). This keeps separate
+    // names distinct instead of merging them across intervening words.
+    // Exception: a "##subword" token continues its source word even when the
+    // model restarts BIO at the subword (e.g. "B-PER(Fe) B-PER(##mi)").
+    const isNewBegin = tag.startsWith('B-') && !isSubword;
+    // Transformers.js omits O-labeled tokens, so gaps in the index sequence
+    // indicate intervening words. Flush the current span whenever we skip a
+    // token, otherwise "and", "at", etc. get absorbed into a single entity.
+    const isGap = current && tokenIndex > current.tokenEnd + 2;
+    // A subword token is part of the current source word — always continue it
+    // (even across a B- restart or a low individual score), never start fresh.
+    const isSubwordContinue = current && isSubword && tokenIndex <= current.tokenEnd + 2;
+    const isContinuation = isSubwordContinue ||
+      (current &&
+        !isNewBegin &&
+        !isGap &&
+        ((tag.startsWith('I-') && group === current.groups[0]) ||
+          // Adjacent name parts may be tagged B-PER + B-PER (no gap); merge
+          // them so "Femi Balogun" stays one span.
+          (group === 'PER' && current.groups[0] === 'PER')));
+
     if (!isContinuation) {
       flush();
       current = {
@@ -134,10 +134,57 @@ self.__ARKN_NER_RUNNER__ = async function runNer(text) {
   }
   flush();
 
+  // ── Convert each grouped token range into an exact source span ─────────────
+  const spans = [];
+  let cursor = 0;
+
+  for (const g of groups) {
+    const tokenIds = Array.from(inputIds.slice(g.tokenStart, g.tokenEnd + 1));
+    const decoded = recognizer.tokenizer.decode(tokenIds, { skip_special_tokens: true }).trim();
+    if (!decoded) continue;
+
+    const inferredGroup = g.groups[0] === 'MISC'
+      ? 'PER'
+      : g.groups[0] === 'ORG'
+        ? 'ORG'
+        : g.groups[0] === 'PER'
+          ? 'PER'
+          : g.groups[0] === 'LOC'
+            ? 'LOC'
+            : null;
+    if (!inferredGroup) continue;
+
+    // Find the decoded text in the source from the last span's end.
+    const start = modelText.toLowerCase().indexOf(decoded.toLowerCase(), cursor);
+    if (start < 0) continue;
+
+    // The decoded text may include a trailing space captured by the decode
+    // (e.g. "Lagos Nigeria "). Trim the source substring to the entity's
+    // actual coverage — never extend into a following word.
+    const rawEnd = start + decoded.length;
+    let end = rawEnd;
+    while (end > start && /\s/.test(modelText[end - 1])) end--;
+
+    const sourceText = text.slice(start, end);
+    if (!sourceText.trim()) continue;
+
+    // Drop entity fragments inside email addresses / URLs (e.g. "co" from
+    // "femi.balogun@email.com"). These are domain parts, not real entities.
+    const before = text.slice(Math.max(0, start - 2), start);
+    if (/[@.]$/.test(before)) continue;
+
+    spans.push({
+      start,
+      end,
+      entity_group: inferredGroup,
+      score: Math.max(g.score, 0.72),
+      text: sourceText.trim(),
+    });
+    cursor = end;
+  }
+
   return spans;
 };
-
-self.__ARKN_NER_WARMUP__ = getPipeline;
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== 'ARKN_NER') return undefined;

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ARKN",
   "short_name": "ARKN",
-  "version": "0.3.1",
+  "version": "0.3.3",
   "description": "Protect sensitive information before it reaches ChatGPT, Claude, and Gemini. Browser-first AI security for teams.",
 
   "icons": {
@@ -19,6 +19,7 @@
     "https://gemini.google.com/*",
     "http://localhost:3000/*",
     "https://myarkn.ai/*",
+    "https://www.myarkn.ai/*",
     "https://umzeixsgchlddlbxhmqi.supabase.co/*",
     "https://huggingface.co/*",
     "https://cdn-lfs.huggingface.co/*"
@@ -94,13 +95,13 @@
       "run_at": "document_idle"
     },
     {
-      "matches": ["http://localhost:3000/*", "https://*.up.railway.app/*"],
+      "matches": ["http://localhost:3000/*", "https://myarkn.ai/*", "https://www.myarkn.ai/*"],
       "js": ["src/content/sync-page.js"],
       "run_at": "document_start",
       "world": "MAIN"
     },
     {
-      "matches": ["http://localhost:3000/*", "https://*.up.railway.app/*"],
+      "matches": ["http://localhost:3000/*", "https://myarkn.ai/*", "https://www.myarkn.ai/*"],
       "js": ["src/content/sync-bridge.js"],
       "run_at": "document_start"
     }

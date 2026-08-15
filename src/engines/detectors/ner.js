@@ -10,6 +10,7 @@
   const create = global.__ARKN_PIPELINE__.createCandidate;
   const cache = new Map();
   const pending = new Map();
+  const REQUEST_TIMEOUT_MS = 8000;
   let requestId = 0;
 
   function mapSpans(text, spans) {
@@ -47,46 +48,49 @@
 
   function handleResponse(detail) {
     const { requestId: id, text, spans, error } = detail || {};
+    const request = pending.get(id);
+    if (!request) return;
+
+    pending.delete(id);
+    pending.delete(request.key);
+    clearTimeout(request.timer);
+
     const candidates = mapSpans(text, spans);
-    cache.set(text, candidates);
+    if (!error) cache.set(request.key, candidates);
     console.log('[ARKN] NER response:', {
       requestId: id,
       entities: candidates.length,
       error: error || null,
     });
-
-    const request = pending.get(id);
-    if (!request) return;
-    pending.delete(id);
-    pending.delete(text);
     request.resolve(candidates);
   }
 
   function prefetch(text) {
     if (!text || !text.trim()) return Promise.resolve([]);
-    if (cache.has(text)) return Promise.resolve(cache.get(text));
-    if (pending.has(text)) return pending.get(text).promise;
+    const key = text;
+    if (cache.has(key)) return Promise.resolve(cache.get(key));
+    if (pending.has(key)) return pending.get(key).promise;
 
     const id = ++requestId;
     console.log('[ARKN] NER request:', { requestId: id, textLength: text.length });
-    let timer;
     let resolveRequest;
     const promise = new Promise((resolve) => {
       resolveRequest = resolve;
-      timer = setTimeout(() => {
-        pending.delete(text);
+    });
+    const request = {
+      key,
+      promise,
+      resolve: resolveRequest,
+      timer: setTimeout(() => {
+        pending.delete(key);
         pending.delete(id);
         console.warn('[ARKN] NER request timed out; regex fallback used:', { requestId: id });
-        resolve([]);
-      }, 2000);
-    });
+        resolveRequest([]);
+      }, REQUEST_TIMEOUT_MS),
+    };
 
-    pending.set(text, { promise, resolve: (value) => {
-      clearTimeout(timer);
-      resolveRequest(value);
-    }});
-    pending.set(id, pending.get(text));
-
+    pending.set(key, request);
+    pending.set(id, request);
     global.dispatchEvent(new CustomEvent('arkn:ner-request', {
       detail: { requestId: id, text },
     }));
@@ -98,6 +102,6 @@
     return cache.get(text) || [];
   }
 
-  global.__ARKN_NER__ = { detect, prefetch, cache };
+  global.__ARKN_NER__ = { detect, prefetch, cache, REQUEST_TIMEOUT_MS };
   global.__ARKN_DETECTORS__.push({ id: 'ner-distilbert', detect });
 })(typeof window !== 'undefined' ? window : globalThis);

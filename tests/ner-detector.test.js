@@ -9,24 +9,38 @@ globalThis.__ARKN_PIPELINE__ = {
 globalThis.__ARKN_DETECTORS__ = [];
 
 let resolveResponse;
+let nextResponse = null;
 globalThis.addEventListener = (type, callback) => {
   if (type === 'arkn:ner-response') globalThis.__nerResponse = callback;
 };
 globalThis.dispatchEvent = (event) => {
   if (event.type === 'arkn:ner-request') {
-    resolveResponse = () => globalThis.__nerResponse({
-      detail: {
-        requestId: event.detail.requestId,
-        text: event.detail.text,
+    const request = event.detail;
+    resolveResponse = () => {
+      const response = nextResponse ?? {
         spans: [
           { start: 8, end: 15, entity_group: 'PER', score: 0.93 },
           { start: 19, end: 32, entity_group: 'ORG', score: 0.88 },
           { start: 36, end: 41, entity_group: 'LOC', score: 0.81 },
         ],
-      },
-    });
+        error: null,
+      };
+      globalThis.__nerResponse({
+        detail: {
+          requestId: request.requestId,
+          text: request.text,
+          spans: response.spans,
+          error: response.error,
+        },
+      });
+    };
+    if (nextResponse) resolveResponse();
   }
 };
+
+function respondWith(spans, error) {
+  nextResponse = { spans, error: error || null };
+}
 
 require('../src/engines/detectors/ner.js');
 const detector = globalThis.__ARKN_NER__;
@@ -94,6 +108,27 @@ test('keeps adjacent person and location entities separate', async () => {
   resolveResponse();
   const spans = await promise;
   assert.deepStrictEqual(spans.map((span) => span.text), ['femi balogun', 'lagos nigeria']);
+});
+
+test('does not cache failed NER responses', async () => {
+  const text = 'Please contact Tolu Adeyemi';
+  respondWith([], 'model-unavailable');
+  const failed = detector.prefetch(text);
+  assert.deepStrictEqual(await failed, []);
+  assert.strictEqual(detector.cache.has(text), false);
+
+  respondWith([{ start: 15, end: 27, entity_group: 'PER', score: 0.91 }]);
+  const retried = detector.prefetch(text);
+  assert.deepStrictEqual((await retried).map((span) => span.text), ['Tolu Adeyemi']);
+});
+
+test('reuses successful NER results for exact text', async () => {
+  const text = 'Please contact khalid ismail';
+  respondWith([{ start: 15, end: 28, entity_group: 'PER', score: 0.91 }]);
+  const first = detector.prefetch(text);
+  assert.deepStrictEqual((await first).map((span) => span.text), ['khalid ismail']);
+  const cached = await detector.prefetch(text);
+  assert.deepStrictEqual(cached.map((span) => span.text), ['khalid ismail']);
 });
 
 async function test(name, fn) {

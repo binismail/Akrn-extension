@@ -145,7 +145,13 @@
       }
     }
 
-    // 4. Sign-offs: Sincerely, [Name]
+    // 4. Contact or address reference: "address location etc of femi balogun"
+    candidates.push(...findAll(
+      /\b(?:address|location|details?|contact|information|number|email)(?:\s+(?:address|location|details?|contact|information|number|email|etc\.?)){0,4}\s+of\s+([A-Za-z][a-z]+\s+[A-Za-z][a-z]+)\b/gi,
+      text, 'NAME', 0.90, 'context-person-reference'
+    ));
+
+    // 5. Sign-offs: Sincerely, [Name]
     candidates.push(...findAll(
       /\b(?:Regards|Sincerely|Thanks|Best|Best regards|Yours sincerely|Kind regards|Cheers|From),?\s+([A-Za-z][a-z]+(?:\s+[A-Za-z][a-z]+)?)\b/g,
       text, 'NAME', 0.90, 'context-signoff'

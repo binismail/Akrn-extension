@@ -12,7 +12,7 @@ importScripts(
 
 globalThis.__ARKN_NER_WARMUP__?.().catch(() => {});
 
-const EXTENSION_VERSION = '0.3.1';
+const EXTENSION_VERSION = '0.3.3';
 const SCHEMA_VERSION  = 2;
 const LOG_KEY         = 'arknLog';
 const ENABLED_KEY     = 'arknEnabled';
